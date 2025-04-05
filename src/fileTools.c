@@ -181,7 +181,7 @@ void appendTextToFile(const char *filePath, const char *text)
 
 int writeTextToFile(const char *filePath, const char *content)
 {
-    FILE *file = fopen(filePath, "w");
+    FILE *file = fopen(filePath, "we");
     if(file == NULL)
     {
         perror("Error opening file");

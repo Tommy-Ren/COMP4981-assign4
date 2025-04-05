@@ -149,7 +149,9 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
                 free(request->path);
                 free(request->protocol);
                 if(request->body)
+                {
                     free(request->body);
+                }
                 free(request);
             }
         }
@@ -170,7 +172,10 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
         {
             pid_t exited = waitpid(child_pids[i], NULL, WNOHANG);
             if(exited == 0)
-                continue;    // still alive
+            {
+                // still alive
+                continue;
+            }
 
             if(exited > 0)
             {
@@ -229,7 +234,9 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
                         free(request->path);
                         free(request->protocol);
                         if(request->body)
+                        {
                             free(request->body);
+                        }
                         free(request);
                     }
                 }
@@ -240,7 +247,17 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
 
 cleanup:
     if(child_pids)
+    {
         free(child_pids);
+    }
+    if(server.port)
+    {
+        free(server.port);
+    }
+    if(server.ip)
+    {
+        free(server.ip);
+    }
     server_close(server);
     return 0;
 }
@@ -593,9 +610,18 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
     {
         const char *internal_error = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
         send(client_socket, internal_error, strlen(internal_error), 0);
+        if(created_response != NULL)
+        {
+            free(created_response);
+        }
         return -1;
     }
 
     send(client_socket, created_response, strlen(created_response), 0);
+    if(created_response != NULL)
+    {
+        free(created_response);
+    }
+
     return 0;
 }

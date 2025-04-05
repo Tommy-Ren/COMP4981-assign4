@@ -3,6 +3,7 @@
 #include "../include/shared_lib.h"
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
 
 /**************************************************************
  ******WE WILL COMPILE THIS FILE AS handler_v1.so LATER********
@@ -25,18 +26,16 @@ int handle_request(int client_fd, const HTTPRequest *request)
     {
         return get_req_response(client_fd, request->path);
     }
-    else if(strcmp(request->method, "HEAD") == 0)
+    if(strcmp(request->method, "HEAD") == 0)
     {
         return head_req_response(client_fd, request->path);
     }
-    else if(strcmp(request->method, "POST") == 0)
+    if(strcmp(request->method, "POST") == 0)
     {
         return handle_post_request(client_fd, request, request->body);
     }
-    else
-    {
-        const char *not_supported = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
-        send(client_fd, not_supported, strlen(not_supported), 0);
-        return -1;
-    }
+
+    const char *not_supported = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
+    send(client_fd, not_supported, strlen(not_supported), 0);
+    return -1;
 }

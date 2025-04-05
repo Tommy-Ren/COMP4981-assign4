@@ -31,7 +31,11 @@ static int handle_args(struct arguments args);
 int main(int argc, char *argv[])
 {
     // Register SIGINT to gracefully stop server/child processes
-    signal(SIGINT, sigintHandler);
+    struct sigaction sa;
+    sa.sa_handler = sigintHandler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    sigaction(SIGINT, &sa, NULL);
 
     // Parse CLI args and dispatch
     return handle_args(parse_args(argc, argv));
