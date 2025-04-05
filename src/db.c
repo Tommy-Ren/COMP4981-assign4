@@ -74,7 +74,8 @@ int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_
 
 int store_post_entry(DBO *dbo, const char *body_string, const char *pk_name)
 {
-    int current_id;
+    int  current_id;
+    char key[MAX_KEY];
 
     // Open the database if not already open
     if(database_open(dbo) < 0)
@@ -90,7 +91,7 @@ int store_post_entry(DBO *dbo, const char *body_string, const char *pk_name)
     }
 
     // Format the key like "entry_0001"
-    char key[MAX_KEY];
+
     snprintf(key, sizeof(key), "entry_%04d", current_id);
 
     // Store the full body string under the generated key

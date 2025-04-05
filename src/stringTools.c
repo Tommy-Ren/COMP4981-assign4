@@ -168,15 +168,19 @@ StringArray parseKeyValueBody(const char *body)
 
 char *extractValueFromPair(const char *pair)
 {
-    const char *equalSign = strchr(pair, '=');
+    size_t      valueLen;
+    const char *equalSign;
+    char       *value;
+
+    equalSign = strchr(pair, '=');
     if(!equalSign || equalSign == pair)
     {
         return NULL;
     }
 
     // Skip the '='
-    size_t valueLen = strlen(equalSign + 1);
-    char  *value    = (char *)malloc(valueLen + 1);
+    valueLen = strlen(equalSign + 1);
+    value    = (char *)malloc(valueLen + 1);
     if(!value)
     {
         return NULL;

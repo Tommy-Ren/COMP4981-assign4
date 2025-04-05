@@ -23,7 +23,7 @@ struct clientInformation
 };
 
 // Pre-fork entry point
-int start_prefork_server(char *ip, char *port, const char *so_path, int num_workers);
+int start_prefork_server(const char *ip, const char *port, const char *so_path, int num_workers);
 
 // Legacy file functions (still useful for GET/HEAD)
 int  server_setup(char *passedServerInfo[]);

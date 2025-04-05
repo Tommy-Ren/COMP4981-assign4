@@ -18,8 +18,9 @@ void register_child_pids(pid_t *pids, int count)
     registered_num_pids   = count;
 }
 
-void sigintHandler(int sig_num)
+__attribute__((noreturn)) void sigintHandler(int sig_num)
 {
+    (void)sig_num;    // Suppress unused parameter warning
     printf("\nSIGINT caught. Cleaning up child processes...\n");
 
     // Kill all children

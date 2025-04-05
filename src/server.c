@@ -23,39 +23,38 @@
 
 #define BUFFER_SIZE 4096
 
-// #define STATUS_INTERNAL_SERVER_ERR 500
-// #define STATUS_OK 200
-// #define STATUS_RES_CREATED 201
-
-static int set_nonblocking(int sockfd)
-{
-    int flags = fcntl(sockfd, F_GETFL, 0);
-    if(flags == -1)
-    {
-        perror("fcntl F_GETFL");
-        return -1;
-    }
-    if(fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1)
-    {
-        perror("fcntl F_SETFL O_NONBLOCK");
-        return -1;
-    }
-    return 0;
-}
+// static int set_nonblocking(int sockfd)
+// {
+//     int flags = fcntl(sockfd, F_GETFL, 0);
+//     if(flags == -1)
+//     {
+//         perror("fcntl F_GETFL");
+//         return -1;
+//     }
+//     if(fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1)
+//     {
+//         perror("fcntl F_SETFL O_NONBLOCK");
+//         return -1;
+//     }
+//     return 0;
+// }
 
 /**
  * Function to load the request handler from the shared library
  * @param so_path path to the shared library
  * @return function pointer to the request handler
  */
-int start_prefork_server(char *ip, char *port, const char *so_path, int num_workers)
+int start_prefork_server(const char *ip, const char *port, const char *so_path, int num_workers)
 {
     struct serverInformation server;
     pid_t                   *child_pids;
     RequestHandlerFunc       handler;
 
-    server.ip   = (char *)ip;
-    server.port = (char *)port;
+    server.ip   = strdup(ip);
+    server.port = strdup(port);
+    child_pids  = NULL;
+    handler     = NULL;
+    server.fd   = -1;
 
     // Setup socket
     server.fd = socket_create();
@@ -101,9 +100,11 @@ int start_prefork_server(char *ip, char *port, const char *so_path, int num_work
 
             while(1)
             {
-                int     client_fd;
-                char    buffer[BUFFER_SIZE];
-                ssize_t bytes;
+                TokenAndStr  firstLine;
+                HTTPRequest *request;
+                int          client_fd;
+                char         buffer[BUFFER_SIZE];
+                ssize_t      bytes;
 
                 client_fd = accept(server.fd, NULL, NULL);
                 if(client_fd < 0)
@@ -122,8 +123,8 @@ int start_prefork_server(char *ip, char *port, const char *so_path, int num_work
                 buffer[bytes] = '\0';
 
                 // Get the first line (request line)
-                TokenAndStr  firstLine = getFirstToken(buffer, "\n");
-                HTTPRequest *request   = initializeHTTPRequestFromString(firstLine.token);
+                firstLine = getFirstToken(buffer, "\n");
+                request   = initializeHTTPRequestFromString(firstLine.token);
                 free(firstLine.originalStr);
 
                 // Handle POST body (if any)
@@ -151,8 +152,6 @@ int start_prefork_server(char *ip, char *port, const char *so_path, int num_work
                     free(request->body);
                 free(request);
             }
-
-            exit(EXIT_SUCCESS);    // never reached unless loop breaks
         }
         else
         {
@@ -233,9 +232,7 @@ int start_prefork_server(char *ip, char *port, const char *so_path, int num_work
                             free(request->body);
                         free(request);
                     }
-                    exit(EXIT_SUCCESS);
                 }
-
                 child_pids[i] = new_pid;
             }
         }
