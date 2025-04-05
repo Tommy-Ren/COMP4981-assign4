@@ -109,7 +109,6 @@ static int handle_args(struct arguments args)
                 "Available: 'client', 'server'\n%s",
                 args.type,
                 USAGE);
-        exit(EXIT_FAILURE);
+        return 1;
     }
-    return 0;
 }

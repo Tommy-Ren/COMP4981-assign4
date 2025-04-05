@@ -6,19 +6,13 @@
 #define SIGINTHANDLER_H
 
 #include <signal.h>
+#include <sys/types.h>
+
+void sigintHandler(int sig_num);
 
 /**
- * Registers an array of child PIDs to be tracked by the SIGINT handler.
- * Must be called before the server starts forking.
- * @param pids Pointer to the array of child PIDs.
- * @param count Number of worker processes.
+ * Register child PIDs globally for cleanup on SIGINT.
  */
 void register_child_pids(pid_t *pids, int count);
-
-/**
- * Catches SIGINT and handles cleanup.
- * @param sig_num The signal number.
- */
-void sigintHandler(int sig_num);
 
 #endif    // SIGINTHANDLER_H

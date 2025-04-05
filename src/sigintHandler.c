@@ -9,41 +9,28 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t *child_pids   = NULL;
-static int    num_children = 0;
+static pid_t *registered_child_pids = NULL;
+static int    registered_num_pids   = 0;
 
 void register_child_pids(pid_t *pids, int count)
 {
-    child_pids   = pids;
-    num_children = count;
+    registered_child_pids = pids;
+    registered_num_pids   = count;
 }
 
 void sigintHandler(int sig_num)
 {
-    // Reset signal handler
-    signal(SIGINT, sigintHandler);
+    printf("\nSIGINT caught. Cleaning up child processes...\n");
 
-    printf("\nSIGINT received (signal %d), shutting down server gracefully...\n", sig_num);
-
-    // Terminate all child processes
-    if(child_pids)
+    // Kill all children
+    for(int i = 0; i < registered_num_pids; ++i)
     {
-        for(int i = 0; i < num_children; i++)
+        if(registered_child_pids[i] > 0)
         {
-            if(child_pids[i] > 0)
-            {
-                kill(child_pids[i], SIGTERM);
-            }
-        }
-
-        // Wait for children to terminate
-        for(int i = 0; i < num_children; i++)
-        {
-            waitpid(child_pids[i], NULL, 0);
+            printf("Killing worker PID: %d\n", registered_child_pids[i]);
+            kill(registered_child_pids[i], SIGTERM);
         }
     }
 
-    printf("All child processes terminated. Server exiting.\n");
-
-    exit(EXIT_SUCCESS);
+    exit(0);
 }

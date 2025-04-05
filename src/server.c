@@ -48,7 +48,7 @@ static int set_nonblocking(int sockfd)
  * @param so_path path to the shared library
  * @return function pointer to the request handler
  */
-int start_prefork_server(const char *ip, const char *port, const char *so_path, int num_workers)
+int start_prefork_server(char *ip, char *port, char *so_path, int num_workers)
 {
     struct serverInformation server;
     pid_t                   *child_pids;
@@ -76,7 +76,7 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
     }
 
     // Fork worker processes
-    child_pids = malloc(num_workers * sizeof(pid_t));
+    child_pids = malloc((size_t)num_workers * sizeof(pid_t));
     if(!child_pids)
     {
         perror("malloc failed");
@@ -181,15 +181,19 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
 
                     while(1)
                     {
-                        int client_fd = accept(server.fd, NULL, NULL);
+                        int          client_fd = accept(server.fd, NULL, NULL);
+                        char         buffer[BUFFER_SIZE];
+                        ssize_t      bytes;
+                        TokenAndStr  firstLine;
+                        HTTPRequest *request;
+
                         if(client_fd < 0)
                         {
                             perror("accept failed");
                             continue;
                         }
 
-                        char    buffer[BUFFER_SIZE];
-                        ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+                        bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
                         if(bytes <= 0)
                         {
                             close(client_fd);
@@ -198,8 +202,8 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
 
                         buffer[bytes] = '\0';
 
-                        TokenAndStr  firstLine = getFirstToken(buffer, "\n");
-                        HTTPRequest *request   = initializeHTTPRequestFromString(firstLine.token);
+                        firstLine = getFirstToken(buffer, "\n");
+                        request   = initializeHTTPRequestFromString(firstLine.token);
                         free(firstLine.originalStr);
 
                         if(strcmp(request->method, "POST") == 0)
@@ -569,6 +573,8 @@ int head_req_response(int client_socket, const char *filePath)
  */
 int handle_post_request(int client_socket, const HTTPRequest *request, const char *body)
 {
+    DBO dbo;
+
     if(!request || !body || strlen(body) == 0)
     {
         const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
@@ -576,8 +582,7 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
         return -1;
     }
 
-    DBO dbo;
-    dbo.name = "../db/post_data.db";    // Path to your ndbm database
+    dbo.name = strdup("../db/post_data.db");    // Path to your ndbm database
 
     if(store_post_entry(&dbo, body, "entry_id") != 0)
     {

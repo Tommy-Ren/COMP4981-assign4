@@ -8,6 +8,7 @@
         "filetools.h": "c",
         "server.h": "c",
         "unistd.h": "c",
-        "db.h": "c"
+        "db.h": "c",
+        "types.h": "c"
     }
 }
