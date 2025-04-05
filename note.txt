@@ -1,0 +1,18 @@
+build as usual
+
+put favicon, index.html and test.txt to build folder
+
+on 1 terminal, use this command to run server
+./app -t server -i <IP> -p <port>
+
+open second terminal and start testing
+
+HEAD: curl -I http://<IP>:<port>/index.html, then check it with the link http://<IP>:<port>/index.html on your browser (HEAD first then GET)
+
+GET: curl http://<IP>:<port>/index.html on terminal OR http://<IP>:<port>/index.html on your browser
+
+POST: curl -X POST http://<IP>:<port>/test.txt -d "<your_name>" on terminal, then open the file to see
+
+./build/app -t server -i 192.168.122.1 -p 8000
+./build/app -t client -i 192.168.122.1 -p 8000
+curl http://192.168.122.1:8000/index.html
