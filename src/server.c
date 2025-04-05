@@ -6,10 +6,10 @@
 #include "../include/db.h"
 #include "../include/fileTools.h"
 #include "../include/shared_lib.h"
+#include "../include/sigintHandler.h"
 #include "../include/stringTools.h"
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <ndbm.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -48,7 +48,7 @@ static int set_nonblocking(int sockfd)
  * @param so_path path to the shared library
  * @return function pointer to the request handler
  */
-int start_prefork_server(char *ip, char *port, char *so_path, int num_workers)
+int start_prefork_server(char *ip, char *port, const char *so_path, int num_workers)
 {
     struct serverInformation server;
     pid_t                   *child_pids;
@@ -101,15 +101,18 @@ int start_prefork_server(char *ip, char *port, char *so_path, int num_workers)
 
             while(1)
             {
-                int client_fd = accept(server.fd, NULL, NULL);
+                int     client_fd;
+                char    buffer[BUFFER_SIZE];
+                ssize_t bytes;
+
+                client_fd = accept(server.fd, NULL, NULL);
                 if(client_fd < 0)
                 {
                     perror("accept failed");
                     continue;
                 }
 
-                char    buffer[BUFFER_SIZE];
-                ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+                bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
                 if(bytes <= 0)
                 {
                     close(client_fd);
@@ -172,9 +175,12 @@ int start_prefork_server(char *ip, char *port, char *so_path, int num_workers)
 
             if(exited > 0)
             {
+                pid_t new_pid;
+
                 // Worker crashed, restart
+                new_pid = fork();
                 printf("[Parent] Worker %d (PID %d) died. Restarting...\n", i, exited);
-                pid_t new_pid = fork();
+
                 if(new_pid == 0)
                 {
                     printf("[Worker %d] Restarted with PID %d\n", i, getpid());
@@ -573,7 +579,8 @@ int head_req_response(int client_socket, const char *filePath)
  */
 int handle_post_request(int client_socket, const HTTPRequest *request, const char *body)
 {
-    DBO dbo;
+    DBO         dbo;
+    const char *created_response;
 
     if(!request || !body || strlen(body) == 0)
     {
@@ -582,7 +589,8 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
         return -1;
     }
 
-    dbo.name = strdup("../db/post_data.db");    // Path to your ndbm database
+    dbo.name         = strdup("../db/post_data.db");    // Path to your ndbm database
+    created_response = strdup("HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n");
 
     if(store_post_entry(&dbo, body, "entry_id") != 0)
     {
@@ -591,7 +599,6 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
         return -1;
     }
 
-    const char *created_response = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
     send(client_socket, created_response, strlen(created_response), 0);
     return 0;
 }

@@ -9,6 +9,8 @@
         "server.h": "c",
         "unistd.h": "c",
         "db.h": "c",
-        "types.h": "c"
+        "types.h": "c",
+        "stringtools.h": "c",
+        "ndbm.h": "c"
     }
 }
