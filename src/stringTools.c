@@ -159,3 +159,29 @@ bool checkIfCharInString(const char *stringToCheck, char toCheck)
     }
     return false;
 }
+
+StringArray parseKeyValueBody(const char *body)
+{
+    // Tokenize body on "&"
+    return tokenizeString(body, "&");
+}
+
+char *extractValueFromPair(const char *pair)
+{
+    const char *equalSign = strchr(pair, '=');
+    if(!equalSign || equalSign == pair)
+    {
+        return NULL;
+    }
+
+    // Skip the '='
+    size_t valueLen = strlen(equalSign + 1);
+    char  *value    = (char *)malloc(valueLen + 1);
+    if(!value)
+    {
+        return NULL;
+    }
+
+    strcpy(value, equalSign + 1);
+    return value;
+}

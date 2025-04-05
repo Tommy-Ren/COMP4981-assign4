@@ -43,4 +43,12 @@ void printFileDataStruct(const struct fileData *fileData);
  */
 void appendTextToFile(const char *filePath, const char *text);
 
+/**
+ * @brief Writes full string content to a file (overwrite mode) for debug.
+ * @param filePath Path to the file to write.
+ * @param content Content to write.
+ * @return 0 on success, -1 on failure.
+ */
+int writeTextToFile(const char *filePath, const char *content);
+
 #endif    // FILETOOLS_H

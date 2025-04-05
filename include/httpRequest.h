@@ -20,6 +20,9 @@ typedef struct
 
     /** @brief The protocol, e.g. HTTP/1.1 */
     char *protocol;
+
+    /** @brief Optional request body (e.g., for POST). */
+    char *body;
 } HTTPRequest;
 
 /**
@@ -37,6 +40,13 @@ HTTPRequest *initializeHTTPRequestFromString(const char *string);
  * @return struct HTTPRequest
  */
 HTTPRequest initializeHTTPRequest(const char *method, const char *path, const char *protocol);
+
+/**
+ * @brief Sets the body content of an existing HTTPRequest.
+ * @param request The request object to modify.
+ * @param body_string The raw POST body string.
+ */
+void setHTTPRequestBody(HTTPRequest *request, const char *body_string);
 
 /**
  * @brief Strips the given string of return characters.

@@ -94,8 +94,18 @@ HTTPRequest initializeHTTPRequest(const char *method, const char *path, const ch
     request.method   = strdup(method);
     request.path     = strdup(path);
     request.protocol = strdup(protocol);
+    request.body     = NULL;
 
     return request;
+}
+
+void setHTTPRequestBody(HTTPRequest *request, const char *body_string)
+{
+    if(request == NULL || body_string == NULL)
+    {
+        return;
+    }
+    request->body = strdup(body_string);
 }
 
 void printHTTPRequestStruct(const HTTPRequest *request)
@@ -108,8 +118,10 @@ void printHTTPRequestStruct(const HTTPRequest *request)
            "\n\tMethod: %s"
            "\n\tPath: %s"
            "\n\tProtocol: %s"
+           "\n\tBody: %s"
            "\n}\n",
            request->method,
            request->path,
-           request->protocol);
+           request->protocol,
+           request->body ? request->body : "(null)");
 }

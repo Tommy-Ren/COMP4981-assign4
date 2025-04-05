@@ -12,6 +12,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+// WE DONT NEED CLIENT IN THIS PROJECT
+
 void client(void)
 {
     printf("CLIENT\n");

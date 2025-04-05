@@ -178,3 +178,28 @@ void appendTextToFile(const char *filePath, const char *text)
         exit(EXIT_FAILURE);
     }
 }
+
+int writeTextToFile(const char *filePath, const char *content)
+{
+    FILE *file = fopen(filePath, "w");
+    if(file == NULL)
+    {
+        perror("Error opening file");
+        return -1;
+    }
+
+    if(fputs(content, file) == EOF)
+    {
+        perror("Error writing to file");
+        fclose(file);
+        return -1;
+    }
+
+    if(fclose(file) == EOF)
+    {
+        perror("Error closing file");
+        return -1;
+    }
+
+    return 0;
+}

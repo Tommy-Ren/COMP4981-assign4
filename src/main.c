@@ -14,7 +14,7 @@
 
 #define USAGE "Usage: -t type -i ip -p port\n"
 
-// struct to hold the values for
+// Struct to hold command-line args
 struct arguments
 {
     char *type;
@@ -22,38 +22,30 @@ struct arguments
     char *port;
 };
 
-// checks that arguments are expected
-struct arguments parse_args(int argc, char *argv[]);
-// starts server or connects client to server
-int handle_args(struct arguments args);
+// Parse arguments
+static struct arguments parse_args(int argc, char *argv[]);
+// Handle logic based on -t type
+static int handle_args(struct arguments args);
 
 // drives code
 int main(int argc, char *argv[])
 {
-    // Set Ctrl-C override.
-    // NOLINTNEXTLINE
+    // Register SIGINT to gracefully stop server/child processes
     signal(SIGINT, sigintHandler);
 
-    // parse args
-    // handle args --> either set up server on ip:port or connect
-    handle_args(parse_args(argc, argv));
-
-    // start server or client
-    server();
-    client();
-
-    return EXIT_SUCCESS;
+    // Parse CLI args and dispatch
+    return handle_args(parse_args(argc, argv));
 }
 
-struct arguments parse_args(int argc, char *argv[])
+static struct arguments parse_args(int argc, char *argv[])
 {
     int              opt;
-    struct arguments newArgs;
+    struct arguments args;
 
     // Initialize struct
-    newArgs.type = NULL;
-    newArgs.ip   = NULL;
-    newArgs.port = NULL;
+    args.type = NULL;
+    args.ip   = NULL;
+    args.port = NULL;
 
     // Parse arguments
     while((opt = getopt(argc, argv, "t:i:p:")) != -1)
@@ -61,13 +53,13 @@ struct arguments parse_args(int argc, char *argv[])
         switch(opt)
         {
             case 't':
-                newArgs.type = optarg;
+                args.type = optarg;
                 break;
             case 'i':
-                newArgs.ip = optarg;
+                args.ip = optarg;
                 break;
             case 'p':
-                newArgs.port = optarg;
+                args.port = optarg;
                 break;
             default:
                 fprintf(stderr, "Usage: %s -t type -i ip -p port\n", argv[0]);
@@ -75,42 +67,47 @@ struct arguments parse_args(int argc, char *argv[])
         }
     }
 
-    // Check if required options are provided
-    if(newArgs.type == NULL || newArgs.ip == NULL || newArgs.port == NULL || (!checkIfCharInString(newArgs.ip, '.')) || (checkIfCharInString(newArgs.port, '.')))
+    if(!args.type || !args.ip || !args.port || !checkIfCharInString(args.ip, '.') || checkIfCharInString(args.port, '.'))
     {
-        fprintf(stderr, "Usage: %s -t type -i ip -p port\n", argv[0]);
+        fprintf(stderr, USAGE);
         exit(EXIT_FAILURE);
     }
 
-    return newArgs;
+    return args;
 }
 
-int handle_args(struct arguments passedArgs)
+static int handle_args(struct arguments args)
 {
     char *serverInformation[2];
-    serverInformation[0] = passedArgs.ip;
-    serverInformation[1] = passedArgs.port;
-    printf("%s\n", passedArgs.ip);
-    if(passedArgs.type == NULL || passedArgs.ip == NULL || passedArgs.port == NULL)
+    serverInformation[0] = args.ip;
+    serverInformation[1] = args.port;
+
+    printf("Running on %s:%s\n", args.ip, args.port);
+
+    if(args.type == NULL || args.ip == NULL || args.port == NULL)
     {
         return 1;
     }
-    if(strcmp(passedArgs.type, "client") == 0)
+    if(strcmp(args.type, "client") == 0)
     {
         // client
-        connect_client(serverInformation);
+        return connect_client(serverInformation);
     }
-    else if(strcmp(passedArgs.type, "server") == 0)
+    else if(strcmp(args.type, "server") == 0)
     {
-        // server
-        server_setup(serverInformation);
+        const char *so_path     = "./handlers/handler_v1.so";
+        int         num_workers = 4;
+
+        printf("Starting pre-fork server on %s:%s with %d workers using %s\n", args.ip, args.port, num_workers, so_path);
+
+        return start_prefork_server(args.ip, args.port, so_path, num_workers);
     }
     else
     {
         fprintf(stderr,
                 "Error: Invalid type: %s\n"
                 "Available: 'client', 'server'\n%s",
-                passedArgs.type,
+                args.type,
                 USAGE);
         exit(EXIT_FAILURE);
     }

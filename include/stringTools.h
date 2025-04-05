@@ -91,4 +91,20 @@ char *addCharacterToStart(const char *original, const char *toAdd);
  * @return false if no character is found
  */
 bool checkIfCharInString(const char *stringToCheck, char toCheck);
+
+/**
+ * @brief Parses a URL-encoded key=value&key2=value2 string into a StringArray.
+ * Each entry is "key=value".
+ * @param body The POST request body string.
+ * @return StringArray of key=value strings.
+ */
+StringArray parseKeyValueBody(const char *body);
+
+/**
+ * @brief Extracts value from a key=value pair string.
+ * @param pair A string like "key=value".
+ * @return char* pointing to the value (must be freed).
+ */
+char *extractValueFromPair(const char *pair);
+
 #endif    // STRINGTOOLS_H

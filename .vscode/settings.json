@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "stdlib.h": "c",
+        "httprequest.h": "c",
+        "*.so": "c",
+        "atomic": "c",
+        "shared_lib.h": "c",
+        "filetools.h": "c",
+        "server.h": "c",
+        "unistd.h": "c",
+        "db.h": "c"
+    }
+}

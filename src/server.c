@@ -1,11 +1,11 @@
-
 //
 // Created by Kiet & Tommy on 12/1/25.
 //
 
 #include "../include/server.h"
+#include "../include/db.h"
 #include "../include/fileTools.h"
-#include "../include/httpRequest.h"
+#include "../include/shared_lib.h"
 #include "../include/stringTools.h"
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -17,28 +17,15 @@
 #include <string.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
-#define MAX_BUFFER_SIZE 1024
+#define BUFFER_SIZE 4096
+
 // #define STATUS_INTERNAL_SERVER_ERR 500
 // #define STATUS_OK 200
 // #define STATUS_RES_CREATED 201
-// todo handle the different cases in the response :: 404, 504, etc
-// todo re-comment code for more clarity
-// todo break down functions into smaller functions to pinpoint errors, etc
-// todo move functions to appropriate modules
-// todo implement read fully --> wait until all bits are read (wait until end of
-// req \r\n\r\n for reading)
-
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static volatile sig_atomic_t exit_flag = 0;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static struct pollfd fds[SOMAXCONN];
-
-void server(void)
-{
-    printf("SERVER\n");
-}
 
 static int set_nonblocking(int sockfd)
 {
@@ -56,45 +43,222 @@ static int set_nonblocking(int sockfd)
     return 0;
 }
 
-int server_setup(char *passedServerInfo[])
+/**
+ * Function to load the request handler from the shared library
+ * @param so_path path to the shared library
+ * @return function pointer to the request handler
+ */
+int start_prefork_server(const char *ip, const char *port, const char *so_path, int num_workers)
 {
-    struct serverInformation newServer;
-    struct clientInformation clients[SOMAXCONN];
-    int                      numClients;
-    // sigaction --> close
-    // server setup
-    newServer.ip   = passedServerInfo[0];
-    newServer.port = passedServerInfo[1];
-    // socket
-    newServer.fd = socket_create();
-    if(set_nonblocking(newServer.fd) == -1)
+    struct serverInformation server;
+    pid_t                   *child_pids;
+    RequestHandlerFunc       handler;
+
+    server.ip   = (char *)ip;
+    server.port = (char *)port;
+
+    // Setup socket
+    server.fd = socket_create();
+    if(socket_bind(server) < 0)
     {
-        perror("set_nonblocking failed");
-        close(newServer.fd);
-        return 0;
-    }
-    // bind
-    if(socket_bind(newServer))
-    {
-        perror("SOCKET BIND");
-        return -1;
+        perror("Socket bind failed");
+        goto cleanup;
     }
 
-    start_listen(newServer.fd);
+    start_listen(server.fd);
 
-    // Initialize the main server socket in the pollfd array
-    fds[0].fd     = newServer.fd;
-    fds[0].events = POLLIN;
-    numClients    = 1;    // Number of clients (starting with the server itself)
+    // Load shared library handler
+    handler = load_request_handler(so_path);
+    if(!handler)
+    {
+        fprintf(stderr, "Failed to load handler from .so\n");
+        goto cleanup;
+    }
 
-    handle_connection(newServer.fd, clients, &numClients);
+    // Fork worker processes
+    child_pids = malloc(num_workers * sizeof(pid_t));
+    if(!child_pids)
+    {
+        perror("malloc failed");
+        goto cleanup;
+    }
 
-    server_close(newServer);
+    register_child_pids(child_pids, num_workers);
+
+    for(int i = 0; i < num_workers; i++)
+    {
+        pid_t pid = fork();
+        if(pid < 0)
+        {
+            perror("fork failed");
+            goto cleanup;
+        }
+
+        if(pid == 0)
+        {
+            // === CHILD PROCESS ===
+            printf("[Worker %d] Started with PID %d\n", i, getpid());
+
+            while(1)
+            {
+                int client_fd = accept(server.fd, NULL, NULL);
+                if(client_fd < 0)
+                {
+                    perror("accept failed");
+                    continue;
+                }
+
+                char    buffer[BUFFER_SIZE];
+                ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+                if(bytes <= 0)
+                {
+                    close(client_fd);
+                    continue;
+                }
+
+                buffer[bytes] = '\0';
+
+                // Get the first line (request line)
+                TokenAndStr  firstLine = getFirstToken(buffer, "\n");
+                HTTPRequest *request   = initializeHTTPRequestFromString(firstLine.token);
+                free(firstLine.originalStr);
+
+                // Handle POST body (if any)
+                if(strcmp(request->method, "POST") == 0)
+                {
+                    // Detect start of body: after empty line (\r\n\r\n)
+                    char *body_start = strstr(buffer, "\r\n\r\n");
+                    if(body_start)
+                    {
+                        body_start += 4;    // Skip past \r\n\r\n
+                        setHTTPRequestBody(request, body_start);
+                    }
+                }
+
+                // Handle request
+                check_for_handler_update(so_path, &handler);
+                handler(client_fd, request);
+
+                // Clean up
+                close(client_fd);
+                free(request->method);
+                free(request->path);
+                free(request->protocol);
+                if(request->body)
+                    free(request->body);
+                free(request);
+            }
+
+            exit(EXIT_SUCCESS);    // never reached unless loop breaks
+        }
+        else
+        {
+            // === PARENT PROCESS ===
+            child_pids[i] = pid;
+        }
+    }
+
+    printf("[Parent] Monitoring worker processes...\n");
+
+    // Monitor & restart crashed workers
+    while(1)
+    {
+        sleep(1);
+        for(int i = 0; i < num_workers; i++)
+        {
+            pid_t exited = waitpid(child_pids[i], NULL, WNOHANG);
+            if(exited == 0)
+                continue;    // still alive
+
+            if(exited > 0)
+            {
+                // Worker crashed, restart
+                printf("[Parent] Worker %d (PID %d) died. Restarting...\n", i, exited);
+                pid_t new_pid = fork();
+                if(new_pid == 0)
+                {
+                    printf("[Worker %d] Restarted with PID %d\n", i, getpid());
+
+                    while(1)
+                    {
+                        int client_fd = accept(server.fd, NULL, NULL);
+                        if(client_fd < 0)
+                        {
+                            perror("accept failed");
+                            continue;
+                        }
+
+                        char    buffer[BUFFER_SIZE];
+                        ssize_t bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
+                        if(bytes <= 0)
+                        {
+                            close(client_fd);
+                            continue;
+                        }
+
+                        buffer[bytes] = '\0';
+
+                        TokenAndStr  firstLine = getFirstToken(buffer, "\n");
+                        HTTPRequest *request   = initializeHTTPRequestFromString(firstLine.token);
+                        free(firstLine.originalStr);
+
+                        if(strcmp(request->method, "POST") == 0)
+                        {
+                            char *body_start = strstr(buffer, "\r\n\r\n");
+                            if(body_start)
+                            {
+                                body_start += 4;
+                                setHTTPRequestBody(request, body_start);
+                            }
+                        }
+
+                        check_for_handler_update(so_path, &handler);
+                        handler(client_fd, request);
+
+                        close(client_fd);
+                        free(request->method);
+                        free(request->path);
+                        free(request->protocol);
+                        if(request->body)
+                            free(request->body);
+                        free(request);
+                    }
+                    exit(EXIT_SUCCESS);
+                }
+
+                child_pids[i] = new_pid;
+            }
+        }
+    }
+
+cleanup:
+    if(child_pids)
+        free(child_pids);
+    server_close(server);
     return 0;
 }
 
-// to set up server:
+/**
+ * Function to handle the server setup
+ * @param passedServerInfo array of server information
+ * @return 0 if success
+ */
+int server_setup(char *passedServerInfo[])
+{
+    const char *ip      = passedServerInfo[0];
+    const char *port    = passedServerInfo[1];
+    const char *so_path = "../handlers/handler_v1.so";
+    const int   workers = 4;    // Number of worker processes
 
+    printf("Starting pre-forked server on %s:%s with %d workers...\n", ip, port, workers);
+
+    return start_prefork_server(ip, port, so_path, workers);
+}
+
+/**
+ * Function to create a socket
+ * @return server socket fd
+ */
 int socket_create(void)
 {
     int serverSocket;
@@ -107,6 +271,11 @@ int socket_create(void)
     return serverSocket;
 }
 
+/**
+ * Function to bind the socket to the given IP and port
+ * @param activeServer server information
+ * @return 0 if success
+ */
 int socket_bind(struct serverInformation activeServer)
 {
     struct sockaddr_in server_address;
@@ -153,141 +322,6 @@ void start_listen(int server_fd)
         exit(EXIT_FAILURE);
     }
     printf("Listening for incoming connections...\n");
-}
-
-/**
- * Function handles main logic loop for ready client sockets using IO
- * multiplexing
- * @param server_fd server socket
- * @param clients array of client socket fds
- * @param numClients number of clients
- * @return 1 on success
- */
-int handle_connection(int server_fd, struct clientInformation clients[], int *numClients)
-{
-    TokenAndStr        requestFirstLine;
-    const HTTPRequest *httpRequest;
-
-    // To silence the errors :/
-    httpRequest = NULL;
-    printHTTPRequestStruct(httpRequest);
-
-    while(!exit_flag)
-    {
-        int activity;
-        for(int i = 1; i < *numClients; i++)
-        {
-            fds[i].fd     = clients[i].fd;
-            fds[i].events = POLLIN;
-        }
-
-        // poll used for IO multiplexing
-        activity = poll(fds, (nfds_t)*numClients, -1);    // -1 means wait indefinitely
-
-        if(activity == -1)
-        {
-            perror("poll failed");
-            exit(EXIT_FAILURE);
-        }
-
-        // check for new connection on the main server socket
-        if(fds[0].revents & POLLIN)
-        {
-            int client_fd = accept(server_fd, NULL, NULL);
-            if(client_fd == -1)
-            {
-                perror("accept failed");
-                // Handle error if needed
-            }
-            else
-            {
-                // Set client socket to non-blocking mode
-                if(set_nonblocking(client_fd) == -1)
-                {
-                    perror("set_nonblocking failed");
-                    // Handle error if needed
-                    close(client_fd);
-                }
-                else
-                {
-                    printf("New client: adding to array\n");
-                    clients[*numClients].fd = client_fd;
-                    // TODO add to client struct here when ready using
-                    // clients[*numClients]
-                    (*numClients)++;
-
-                    fds[*numClients - 1].fd = client_fd;
-
-                    // waits for next input from any client
-                    fds[*numClients - 1].events = POLLIN;
-                }
-            }
-        }
-
-        // check if any client is ready to send a response to
-        for(int i = 1; i < *numClients; ++i)
-        {
-            if(fds[i].revents & POLLIN)
-            {
-                char    buffer[MAX_BUFFER_SIZE];
-                ssize_t bytesRead;
-                printf("Client ready; working..\n");
-                // read in req
-                bytesRead = recv(clients[i].fd, buffer, sizeof(buffer), 0);
-                if(bytesRead == 0)
-                {
-                    printf("Client disconnected: %d\n", clients[i].fd);
-                    close(clients[i].fd);
-                    for(int j = i; j < *numClients - 1; ++j)
-                    {
-                        clients[j] = clients[j + 1];
-                        fds[j]     = fds[j + 1];
-                    }
-                    (*numClients)--;
-                }
-                else if(bytesRead < 0)
-                {
-                    perror("recv failed");
-                }
-                else
-                {
-                    // todo implement read fully (wait until \r\n\r\n)
-                    printf("\n\n"
-                           "----- START CLIENT REQUEST ----- "
-                           "\n\n"
-                           "%s\n"
-                           "----- END CLIENT REQUEST ----- \n"
-                           "\n\n",
-                           buffer);
-
-                    // Get only the first line.
-                    requestFirstLine = getFirstToken(buffer, "\n");
-
-                    printf("Request first line: %s\n", requestFirstLine.token);
-
-                    httpRequest = initializeHTTPRequestFromString(requestFirstLine.token);
-                    printHTTPRequestStruct(httpRequest);
-
-                    // handle request
-                    if(strcmp(httpRequest->method, "GET") == 0)
-                    {
-                        get_req_response(clients[i].fd, httpRequest->path);
-                    }
-                    else if(strcmp(httpRequest->method, "HEAD") == 0)
-                    {
-                        head_req_response(clients[i].fd, httpRequest->path);
-                    }
-                    else
-                    {
-                        // default err handling
-                        perror("Unknown method type");
-                        exit(EXIT_FAILURE);
-                    }
-                }
-            }
-        }
-    }
-    return 1;
 }
 
 /**
@@ -356,9 +390,9 @@ static int checkIfRoot(const char *filePath, char *verified_path)
 // todo add status codes and handle each situation based on that
 int send_response_resource(int client_socket, const char *content, size_t content_length)
 {
-    char   response[MAX_BUFFER_SIZE];
+    char   response[BUFFER_SIZE];
     size_t total_sent = 0;
-    snprintf(response, MAX_BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
+    snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
 
     // send the response header
     if(send(client_socket, response, strlen(response), 0) == -1)
@@ -389,8 +423,8 @@ int send_response_resource(int client_socket, const char *content, size_t conten
  */ // todo <-- additional status codes
 int send_response_head(int client_socket, size_t content_length)
 {
-    char response[MAX_BUFFER_SIZE];
-    snprintf(response, MAX_BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
+    char response[BUFFER_SIZE];
+    snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
 
     // Send the response header
     if(send(client_socket, response, strlen(response), 0) == -1)
@@ -415,7 +449,7 @@ int get_req_response(int client_socket, const char *filePath)
     FILE  *resource_file;
     long   totalBytesRead;
     char  *file_content;
-    char   verified_path[MAX_BUFFER_SIZE];
+    char   verified_path[BUFFER_SIZE];
     size_t bytesRead;
 
     // todo shift all get/head functions into a single function to port to both
@@ -494,7 +528,7 @@ int head_req_response(int client_socket, const char *filePath)
      */
     char *filePathWithDot;
     FILE *resource_file;
-    char  verified_path[MAX_BUFFER_SIZE];
+    char  verified_path[BUFFER_SIZE];
     long  totalBytesRead;
 
     // check if filePath is root
@@ -527,5 +561,32 @@ int head_req_response(int client_socket, const char *filePath)
     // close file
     fclose(resource_file);
 
+    return 0;
+}
+
+/**
+ * POST handling helper — stores POST body into ndbm.
+ */
+int handle_post_request(int client_socket, const HTTPRequest *request, const char *body)
+{
+    if(!request || !body || strlen(body) == 0)
+    {
+        const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+        send(client_socket, bad_request, strlen(bad_request), 0);
+        return -1;
+    }
+
+    DBO dbo;
+    dbo.name = "../db/post_data.db";    // Path to your ndbm database
+
+    if(store_post_entry(&dbo, body, "entry_id") != 0)
+    {
+        const char *internal_error = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+        send(client_socket, internal_error, strlen(internal_error), 0);
+        return -1;
+    }
+
+    const char *created_response = "HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n";
+    send(client_socket, created_response, strlen(created_response), 0);
     return 0;
 }

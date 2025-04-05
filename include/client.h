@@ -5,6 +5,8 @@
 #ifndef MAIN_CLIENT_H
 #define MAIN_CLIENT_H
 
+// WE DONT NEED CLIENT IN THIS PROJECT
+
 void client(void);
 int  connect_client(char *serverInformation[]);
 
