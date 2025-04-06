@@ -1,2 +1,2 @@
-app src/main.c src/server.c include/server.h src/client.c include/client.h src/stringTools.c include/stringTools.h src/httpRequest.c include/httpRequest.h src/sigintHandler.c include/sigintHandler.h src/fileTools.c include/fileTools.h src/db.c include/db.h src/shared_lib.c include/shared_lib.h src/response.c include/response.h gdbm_compat
+app src/main.c src/server.c include/server.h src/client.c include/client.h src/stringTools.c include/stringTools.h src/httpRequest.c include/httpRequest.h src/sigintHandler.c include/sigintHandler.h src/fileTools.c include/fileTools.h src/db.c include/db.h src/shared_lib.c include/shared_lib.h src/utils.c include/utils.h gdbm_compat handlers/handler_v1.so
 db_viewer src/db_viewer.c gdbm_compat

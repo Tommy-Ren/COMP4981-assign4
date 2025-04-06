@@ -1,9 +1,11 @@
-#include "../include/response.h"
+#include "../include/utils.h"
+#include "../include/db.h"
 #include "../include/server.h"
 #include "../include/stringTools.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/socket.h>
 
 /**
  * Function to check if a filePath is the root. If it is the root, then it will
@@ -45,6 +47,8 @@ int head_req_response(int client_socket, const char *filePath)
     FILE *resource_file;
     char  verified_path[BUFFER_SIZE];
     long  totalBytesRead;
+
+    printf("head_req_response\n");
 
     // check if filePath is root
     checkIfRoot(filePath, verified_path);
@@ -94,6 +98,8 @@ int get_req_response(int client_socket, const char *filePath)
     char  *file_content;
     char   verified_path[BUFFER_SIZE];
     size_t bytesRead;
+
+    printf("get_req_response\n");
 
     // todo shift all get/head functions into a single function to port to both
     // check if filePath is root
@@ -176,5 +182,99 @@ int get_req_response(int client_socket, const char *filePath)
 
     // free resources on success
     free(file_content);
+    return 0;
+}
+
+/**
+ * POST handling helper — stores POST body into ndbm.
+ */
+int handle_post_request(int client_socket, const HTTPRequest *request, const char *body)
+{
+    DBO   dbo;
+    char *created_response = NULL;
+
+    printf("handle_post_request\n");
+
+    if(!request || !body || strlen(body) == 0)
+    {
+        const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
+        send(client_socket, bad_request, strlen(bad_request), 0);
+        return -1;
+    }
+
+    dbo.name         = strdup("../db/post_data.db");    // Path to your ndbm database
+    created_response = strdup("HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n");
+
+    if(store_post_entry(&dbo, body, "entry_id") != 0)
+    {
+        const char *internal_error = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
+        send(client_socket, internal_error, strlen(internal_error), 0);
+        free((void *)created_response);    // ✅ safe even if it's NULL
+        return -1;
+    }
+
+    // ✅ Only send and then free after use
+    if(created_response != NULL)
+    {
+        send(client_socket, created_response, strlen(created_response), 0);
+        free((void *)created_response);
+    }
+
+    return 0;
+}
+
+/**
+ * Function to construct the response and send to client socket from a given
+ * resource Only called when a resource is confirmed to exist
+ * @param client_socket client to send the response to
+ * @param content content of the resource requested
+ * @return 0 if success
+ */
+// todo add status codes and handle each situation based on that
+int send_response_resource(int client_socket, const char *content, size_t content_length)
+{
+    char   response[BUFFER_SIZE];
+    size_t total_sent = 0;
+    snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
+
+    // send the response header
+    if(send(client_socket, response, strlen(response), 0) == -1)
+    {
+        perror("Error sending response header");
+        return -1;
+    }
+
+    // send content
+    while(total_sent < content_length)
+    {
+        ssize_t sent = send(client_socket, content + total_sent, content_length - total_sent, 0);
+        if(sent == -1)
+        {
+            perror("Error sending content");
+            return -1;
+        }
+        total_sent += (size_t)sent;
+    }
+    return 0;
+}
+
+/**
+ * Function to construct and send the head request response
+ * @param client_socket the client that will get the response
+ * @param content_length the length of the content in the requested resource
+ * @return 0 if success
+ */ // todo <-- additional status codes
+int send_response_head(int client_socket, size_t content_length)
+{
+    char response[BUFFER_SIZE];
+    snprintf(response, BUFFER_SIZE, "HTTP/1.1 200 OK\r\nContent-Length: %zu\r\n\r\n", content_length);
+
+    // Send the response header
+    if(send(client_socket, response, strlen(response), 0) == -1)
+    {
+        perror("Error sending response header");
+        return -1;
+    }
+
     return 0;
 }

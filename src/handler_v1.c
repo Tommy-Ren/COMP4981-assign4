@@ -1,5 +1,5 @@
 #include "../include/db.h"    // for POST storage
-#include "../include/response.h"
+#include "../include/utils.h"
 #include "../include/server.h"    // for GET, HEAD response helpers
 #include "../include/shared_lib.h"
 #include <stdio.h>
@@ -27,14 +27,17 @@ int handle_request(int client_fd, const HTTPRequest *request)
 
     if(strcmp(request->method, "GET") == 0)
     {
+        printf("GET request receive");
         return get_req_response(client_fd, request->path);
     }
     if(strcmp(request->method, "HEAD") == 0)
     {
+        printf("HEAD request receive");
         return head_req_response(client_fd, request->path);
     }
     if(strcmp(request->method, "POST") == 0)
     {
+        printf("POST request receive");
         return handle_post_request(client_fd, request, request->body);
     }
 
