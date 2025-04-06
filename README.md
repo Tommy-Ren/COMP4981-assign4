@@ -107,15 +107,12 @@ When you need to add/removes files to/from the project you must rerun the 4 step
 3. On first terminal, run ./app -t server -i <ip> -p <port> (example ./app -t server -i 192.168.21.128 -p 8000)
 4. On second terminal, choosing option to test (install netcat):
 
-        HEAD: 
-    echo -e "HEAD /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
+        HEAD: echo -e "HEAD /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
+   
     
-        GET: 
-    echo -e "GET /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
-    
-        POST: 
-    echo -e "POST /submit HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=kiet&key2=ngo" | nc 192.168.21.128 8000
-    echo -e "POST /submit HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=kim&key2=tran" | nc 192.168.21.128 8000
+        GET: echo -e "GET /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
 
-        Check POST successfully with:
-    echo -e "GET db/post_data.db.pag HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
+    
+        POST: echo -e "POST /submit HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=kiet&key2=ngo" | nc 192.168.21.128 8000
+
+        Check POST successfully with:     echo -e "GET db/post_data.db.pag HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
