@@ -18,6 +18,11 @@ extern int    registered_num_pids;      // NOLINT(cppcoreguidelines-avoid-non-co
 void register_child_pids(pid_t *pids, int count);
 
 /**
+ * Setup the SIGINT handler.
+ */
+void setup_sigint_handler(void);
+
+/**
  * Handle the sigint
  */
 void sigintHandler(int sig_num);

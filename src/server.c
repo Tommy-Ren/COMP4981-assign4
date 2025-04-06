@@ -593,8 +593,8 @@ int head_req_response(int client_socket, const char *filePath)
  */
 int handle_post_request(int client_socket, const HTTPRequest *request, const char *body)
 {
-    DBO         dbo;
-    const char *created_response;
+    DBO   dbo;
+    char *created_response;
 
     if(!request || !body || strlen(body) == 0)
     {

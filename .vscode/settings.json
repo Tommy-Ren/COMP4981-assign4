@@ -11,6 +11,8 @@
         "db.h": "c",
         "types.h": "c",
         "stringtools.h": "c",
-        "ndbm.h": "c"
+        "ndbm.h": "c",
+        "siginthandler.h": "c",
+        "signal.h": "c"
     }
 }

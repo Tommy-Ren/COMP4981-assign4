@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -16,6 +17,25 @@ void register_child_pids(pid_t *pids, int count)
 {
     registered_child_pids = pids;
     registered_num_pids   = count;
+}
+
+void setup_sigint_handler(void)
+{
+    // Define sigaction manually to avoid macro expansion
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+
+    sa.sa_flags = 0;
+    // Don't touch sa_handler macro
+    *(void **)&sa = (void *)sigintHandler;    // Raw assignment to bypass macro safely
+
+    sigemptyset(&sa.sa_mask);
+
+    if(sigaction(SIGINT, &sa, NULL) < 0)
+    {
+        perror("sigaction failed");
+        exit(EXIT_FAILURE);
+    }
 }
 
 __attribute__((noreturn)) void sigintHandler(int sig_num)
