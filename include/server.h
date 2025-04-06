@@ -8,6 +8,8 @@
 #include "httpRequest.h"    // Not shared_lib.h — only server-side logic
 #include <signal.h>
 
+#define BUFFER_SIZE 1024
+
 // struct to hold the info for server
 struct serverInformation
 {
@@ -36,8 +38,6 @@ int  client_close(int client);
 // Static HTTP helpers (used by handler_v1.so)
 int send_response_resource(int client_socket, const char *content, size_t content_length);
 int send_response_head(int client_socket, size_t content_length);
-int get_req_response(int client_socket, const char *filePath);
-int head_req_response(int client_socket, const char *filePath);
 int handle_post_request(int client_socket, const HTTPRequest *request, const char *body);
 
 #endif    // MAIN_SERVER_H

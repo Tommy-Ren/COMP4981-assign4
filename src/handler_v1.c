@@ -1,4 +1,5 @@
-#include "../include/db.h"        // for POST storage
+#include "../include/db.h"    // for POST storage
+#include "../include/response.h"
 #include "../include/server.h"    // for GET, HEAD response helpers
 #include "../include/shared_lib.h"
 #include <stdio.h>

@@ -16,3 +16,6 @@ POST: curl -X POST http://<IP>:<port>/test.txt -d "<your_name>" on terminal, the
 ./build/app -t server -i 192.168.122.1 -p 8000
 ./build/app -t client -i 192.168.122.1 -p 8000
 curl http://192.168.122.1:8000/index.html
+
+Gnerate share library:
+gcc -shared -fPIC src/handler_v1.c src/response.c src/db.c -Iinclude -o handlers/handler_v1.so

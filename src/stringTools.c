@@ -142,8 +142,10 @@ char *addCharacterToStart(const char *original, const char *toAdd)
 
     // copy the 'toAdd' string followed by the 'original' string into the return
     // string
-    strcpy(returnString, toAdd);
-    strcat(returnString, original);
+    strncpy(returnString, toAdd, toAddLength);
+    returnString[toAddLength] = '\0';
+    strncat(returnString, original, originalLength);
+    returnString[toAddLength + originalLength] = '\0';
     return returnString;
 }
 
@@ -186,6 +188,7 @@ char *extractValueFromPair(const char *pair)
         return NULL;
     }
 
-    strcpy(value, equalSign + 1);
+    strncpy(value, equalSign + 1, valueLen);
+    value[valueLen] = '\0';
     return value;
 }
