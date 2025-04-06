@@ -504,11 +504,35 @@ int get_req_response(int client_socket, const char *filePath)
     totalBytesRead = ftell(resource_file);
     fseek(resource_file, 0, SEEK_SET);
 
-    // allocate memory
-    file_content = (char *)malloc((unsigned long)(totalBytesRead + 1));
-    if(file_content == NULL)
+    // Check if any data was actually read
+    if(totalBytesRead > 0)
     {
-        perror("Error allocating memory");
+        // Allocate memory for the file content
+        file_content = (char *)malloc((unsigned long)(totalBytesRead + 1));
+        if(file_content == NULL)
+        {
+            perror("Error allocating memory");
+            fclose(resource_file);
+            return -1;
+        }
+        // Read the file content into memory (assuming fread is used)
+        bytesRead = fread(file_content, 1, (unsigned long)totalBytesRead, resource_file);
+        if(bytesRead != (unsigned long)totalBytesRead)
+        {
+            perror("Error reading file");
+            free(file_content);    // Don't forget to free memory if reading fails
+            fclose(resource_file);
+            return -1;
+        }
+
+        file_content[totalBytesRead] = '\0';    // Null-terminate the string
+    }
+    else
+    {
+        // Handle the case where no data was read
+        file_content = NULL;    // No data to store
+        // Optionally, handle the error if no data is read
+        fprintf(stderr, "No data was read from the file\n");
         fclose(resource_file);
         return -1;
     }
@@ -612,15 +636,17 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
         send(client_socket, internal_error, strlen(internal_error), 0);
         if(created_response != NULL)
         {
-            free(created_response);
+            free(created_response);    // Free the dynamically allocated memory
         }
         return -1;
     }
 
     send(client_socket, created_response, strlen(created_response), 0);
+
+    // Only free dynamically allocated memory
     if(created_response != NULL)
     {
-        free(created_response);
+        free(created_response);    // Free the dynamically allocated memory
     }
 
     return 0;

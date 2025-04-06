@@ -87,12 +87,14 @@ static int handle_args(struct arguments args)
     {
         return 1;
     }
+
     if(strcmp(args.type, "client") == 0)
     {
         // client
         return connect_client(serverInformation);
     }
-    else if(strcmp(args.type, "server") == 0)
+
+    if(strcmp(args.type, "server") == 0)
     {
         const char *so_path     = "./handlers/handler_v1.so";
         int         num_workers = 4;
@@ -101,13 +103,12 @@ static int handle_args(struct arguments args)
 
         return start_prefork_server(args.ip, args.port, so_path, num_workers);
     }
-    else
-    {
-        fprintf(stderr,
-                "Error: Invalid type: %s\n"
-                "Available: 'client', 'server'\n%s",
-                args.type,
-                USAGE);
-        return 1;
-    }
+
+    // Handle invalid type case
+    fprintf(stderr,
+            "Error: Invalid type: %s\n"
+            "Available: 'client', 'server'\n%s",
+            args.type,
+            USAGE);
+    return 1;
 }

@@ -5,9 +5,11 @@
 #include "../include/fileTools.h"
 #include "../include/stringTools.h"
 #include <dirent.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 struct fileData
 {
@@ -82,13 +84,13 @@ struct fileData *initializeFileDataStruct(int fileNameLength, const char *fileNa
 struct fileData *getFileDataFromFilePath(const char *filePath)
 {
     struct fileData *fileData;
-    FILE            *file;
+    int              fd;    // File descriptor
 
-    // File data params.
+    // File data params
     int         fileNameLength;
     long        contentLength;
     const char *fileName;
-    char       *content;
+    char       *content = NULL;
 
     // If !filePath, exit with error.
     if(!filePath)
@@ -98,41 +100,42 @@ struct fileData *getFileDataFromFilePath(const char *filePath)
     }
 
     // Open the file.
-    file = fopen(filePath, "re");
-
-    // If the file does not open, exit with error.
-    if(!file)
+    fd = open(filePath, O_RDONLY | O_CLOEXEC);    // Open file in read-only mode with O_CLOEXEC
+    if(fd == -1)
     {
-        fprintf(stderr, "!file: Error opening file.\n");
+        perror("Error opening file.");
         exit(EXIT_FAILURE);
     }
 
-    // Get the file size.
-    fseek(file, 0, SEEK_END);
-    contentLength = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    // Get the file size using lseek
+    contentLength = lseek(fd, 0, SEEK_END);
+    lseek(fd, 0, SEEK_SET);    // Reset file pointer
 
-    // Allocate memory for the content.
-    content = (char *)malloc((unsigned long)(contentLength + 1));
-
-    // If content failed to allocate, exit with error.
-    if(!content)
+    // If the content length is 0, we don't allocate memory
+    if(contentLength > 0)
     {
-        perror("Memory allocation failed.");
-        exit(EXIT_FAILURE);
+        // Allocate memory for the content.
+        content = (char *)malloc((size_t)(contentLength + 1));
+        if(!content)
+        {
+            perror("Memory allocation failed.");
+            exit(EXIT_FAILURE);
+        }
+
+        // Read the content
+        read(fd, content, (size_t)contentLength);
+        content[contentLength] = '\0';    // Null-terminate the string
     }
 
-    // Read and store the content.
-    fread(content, 1, (unsigned long)contentLength, file);
-    content[contentLength] = '\0';
-
-    // Get the file name.
+    // Get the file name
     fileName       = getLastToken(filePath, "/").token;
     fileNameLength = (int)strlen(fileName);
 
+    // Initialize fileData struct, handle case where content is NULL (empty file)
     fileData = initializeFileDataStruct(fileNameLength, fileName, contentLength, content);
 
-    fclose(file);
+    // Close the file descriptor
+    close(fd);
 
     return fileData;
 }
