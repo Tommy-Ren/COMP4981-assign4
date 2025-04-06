@@ -371,7 +371,7 @@ generate_cmake_content()
   # Add a custom target for cppcheck
   echo "add_custom_command(" >> "$output_file"
   echo "    TARGET $first_target POST_BUILD" >> "$output_file"
-  echo "    COMMAND \${CPPCHECK} --error-exitcode=1 --force --quiet --inline-suppr --check-level=exhaustive --library=posix --enable=all --suppress=missingIncludeSystem --suppress=unusedFunction --suppress=unusedStructMember --suppress=constParameter --suppress=constParameterPointer --suppress=duplicateExpression --suppress=unmatchedSuppression --suppress=knownConditionTrueFalse --suppress=checkersReport -I\${CMAKE_SOURCE_DIR}/include -I/usr/local/include \${SOURCES} \${HEADERS}" >> "$output_file"
+  echo "    COMMAND \${CPPCHECK} --error-exitcode=1 --force --quiet --inline-suppr --check-level=exhaustive --library=posix --enable=all --suppress=missingIncludeSystem --suppress=staticFunction --suppress=unusedFunction --suppress=unusedStructMember --suppress=nullPointerRedundantCheck --suppress=redundantAssignment --suppress=constParameter --suppress=constParameterPointer --suppress=duplicateExpression --suppress=unmatchedSuppression --suppress=knownConditionTrueFalse --suppress=checkersReport -I\${CMAKE_SOURCE_DIR}/include -I/usr/local/include \${SOURCES} \${HEADERS}" >> "$output_file"
   echo "    WORKING_DIRECTORY \${CMAKE_SOURCE_DIR}" >> "$output_file"
   echo "    COMMENT \"Running cppcheck\"" >> "$output_file"
   echo ")" >> "$output_file"

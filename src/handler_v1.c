@@ -15,6 +15,8 @@
  */
 int handle_request(int client_fd, const HTTPRequest *request)
 {
+    const char *not_supported;
+
     if(!request || !request->method || !request->path)
     {
         const char *bad_req = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
@@ -35,7 +37,7 @@ int handle_request(int client_fd, const HTTPRequest *request)
         return handle_post_request(client_fd, request, request->body);
     }
 
-    const char *not_supported = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
+    not_supported = "HTTP/1.1 405 Method Not Allowed\r\nContent-Length: 0\r\n\r\n";
     send(client_fd, not_supported, strlen(not_supported), 0);
     return -1;
 }
