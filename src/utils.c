@@ -48,13 +48,11 @@ int head_req_response(int client_socket, const char *filePath)
     char  verified_path[BUFFER_SIZE];
     long  totalBytesRead;
 
-    printf("head_req_response\n");
-
     // check if filePath is root
     checkIfRoot(filePath, verified_path);
 
     // append "." to filePathWithDot
-    filePathWithDot = addCharacterToStart(verified_path, "../data");
+    filePathWithDot = addCharacterToStart(verified_path, "../data/");
     if(filePathWithDot == NULL)
     {
         perror(". character not added");
@@ -89,7 +87,6 @@ int head_req_response(int client_socket, const char *filePath)
  * @param client_socket client socket that sends the req
  * @return 0 if success
  */
-// todo break down into smaller functions
 int get_req_response(int client_socket, const char *filePath)
 {
     char  *filePathWithDot;
@@ -99,14 +96,12 @@ int get_req_response(int client_socket, const char *filePath)
     char   verified_path[BUFFER_SIZE];
     size_t bytesRead;
 
-    printf("get_req_response\n");
-
     // todo shift all get/head functions into a single function to port to both
     // check if filePath is root
     checkIfRoot(filePath, verified_path);
 
     // append "./" to filePathWithDot
-    filePathWithDot = addCharacterToStart(verified_path, "../data");
+    filePathWithDot = addCharacterToStart(verified_path, "../data/");
     if(filePathWithDot == NULL)
     {
         perror(". character not added");
@@ -121,43 +116,26 @@ int get_req_response(int client_socket, const char *filePath)
         free(filePathWithDot);
         return -1;
     }
-    free(filePathWithDot);
 
     // move cursor to the end of the file, read the position in bytes, reset
     // cursor
     fseek(resource_file, 0, SEEK_END);
     totalBytesRead = ftell(resource_file);
+    if(totalBytesRead <= 0)
+    {
+        fprintf(stderr, "File is empty or ftell failed: %ld\n", totalBytesRead);
+        fclose(resource_file);
+        free(filePathWithDot);
+        return -1;
+    }
+
     fseek(resource_file, 0, SEEK_SET);
 
-    // Check if any data was actually read
-    if(totalBytesRead > 0)
+    // allocate memory
+    file_content = (char *)malloc((unsigned long)(totalBytesRead + 1));
+    if(file_content == NULL)
     {
-        // Allocate memory for the file content
-        file_content = (char *)malloc((unsigned long)(totalBytesRead + 1));
-        if(file_content == NULL)
-        {
-            perror("Error allocating memory");
-            fclose(resource_file);
-            return -1;
-        }
-        // Read the file content into memory (assuming fread is used)
-        bytesRead = fread(file_content, 1, (unsigned long)totalBytesRead, resource_file);
-        if(bytesRead != (unsigned long)totalBytesRead)
-        {
-            perror("Error reading file");
-            free(file_content);    // Don't forget to free memory if reading fails
-            fclose(resource_file);
-            return -1;
-        }
-
-        file_content[totalBytesRead] = '\0';    // Null-terminate the string
-    }
-    else
-    {
-        // Handle the case where no data was read
-        file_content = NULL;    // No data to store
-        // Optionally, handle the error if no data is read
-        fprintf(stderr, "No data was read from the file\n");
+        perror("Error allocating memory");
         fclose(resource_file);
         return -1;
     }
@@ -181,6 +159,7 @@ int get_req_response(int client_socket, const char *filePath)
     }
 
     // free resources on success
+    free(filePathWithDot);
     free(file_content);
     return 0;
 }
@@ -193,8 +172,6 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
     DBO   dbo;
     char *created_response = NULL;
 
-    printf("handle_post_request\n");
-
     if(!request || !body || strlen(body) == 0)
     {
         const char *bad_request = "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n";
@@ -202,18 +179,18 @@ int handle_post_request(int client_socket, const HTTPRequest *request, const cha
         return -1;
     }
 
-    dbo.name         = strdup("../db/post_data.db");    // Path to your ndbm database
+    dbo.name         = strdup("../data/db/post_data.db");    // Path to your ndbm database
     created_response = strdup("HTTP/1.1 201 Created\r\nContent-Length: 0\r\n\r\n");
 
     if(store_post_entry(&dbo, body, "entry_id") != 0)
     {
         const char *internal_error = "HTTP/1.1 500 Internal Server Error\r\nContent-Length: 0\r\n\r\n";
         send(client_socket, internal_error, strlen(internal_error), 0);
-        free((void *)created_response);    // ✅ safe even if it's NULL
+        free((void *)created_response);
         return -1;
     }
 
-    // ✅ Only send and then free after use
+    // Only send and then free after use
     if(created_response != NULL)
     {
         send(client_socket, created_response, strlen(created_response), 0);

@@ -9,8 +9,9 @@ Welcome to the `c template` repository. This guide will help you set up and run 
 3. [Running the `generate-cmakelists.sh` Script](#running-the-generate-cmakelistssh-script)
 4. [Running the `change-compiler.sh` Script](#running-the-change-compilersh-script)
 5. [Running the `build.sh` Script](#running-the-buildsh-script)
-5. [Running the `build-all.sh` Script](#running-the-build-allsh-script)
-6. [Copy the template to start a new project](#copy-the-template-to-start-a-new-project)
+6. [Running the `build-all.sh` Script](#running-the-build-allsh-script)
+7. [Copy the template to start a new project](#copy-the-template-to-start-a-new-project)
+8. [Testing the Code](#testing-the-code)
 
 ## **Cloning the Repository**
 
@@ -97,4 +98,24 @@ This will copy all of the files needed to start a new project.
 The files.txt file contains:
 <executable> <source files> <header files> <libraries>
 
-When you need to add/removes files to/from the project you must rerun the 4 steps above. 
+When you need to add/removes files to/from the project you must rerun the 4 steps above.
+
+## **Testing the Code**
+
+1. Build as usual
+2. Generate share library: gcc -shared -fPIC src/handler_v1.c src/utils.c src/db.c src/stringTools.c -Iinclude -o ../data/handler/handler_v1.so
+3. On first terminal, run ./app -t server -i <ip> -p <port> (example ./app -t server -i 192.168.21.128 -p 8000)
+4. On second terminal, choosing option to test (install netcat):
+
+        HEAD: 
+    echo -e "HEAD /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
+    
+        GET: 
+    echo -e "GET /index.html HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000
+    
+        POST: 
+    echo -e "POST /submit HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=kiet&key2=ngo" | nc 192.168.21.128 8000
+    echo -e "POST /submit HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: 23\r\n\r\nkey1=kim&key2=tran" | nc 192.168.21.128 8000
+
+        Check POST successfully with:
+    echo -e "GET db/post_data.db.pag HTTP/1.1\r\nHost: 192.168.21.128:8000\r\nConnection: keep-alive\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8\r\n\r\n" | nc 192.168.21.128 8000

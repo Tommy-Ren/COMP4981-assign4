@@ -27,17 +27,14 @@ int handle_request(int client_fd, const HTTPRequest *request)
 
     if(strcmp(request->method, "GET") == 0)
     {
-        printf("GET request receive");
         return get_req_response(client_fd, request->path);
     }
     if(strcmp(request->method, "HEAD") == 0)
     {
-        printf("HEAD request receive");
         return head_req_response(client_fd, request->path);
     }
     if(strcmp(request->method, "POST") == 0)
     {
-        printf("POST request receive");
         return handle_post_request(client_fd, request, request->body);
     }
 

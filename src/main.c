@@ -96,7 +96,7 @@ static int handle_args(struct arguments args)
 
     if(strcmp(args.type, "server") == 0)
     {
-        const char *so_path     = "./handlers/handler_v1.so";
+        const char *so_path     = "../data/handler/handler_v1.so";
         int         num_workers = 4;
 
         printf("Starting pre-fork server on %s:%s with %d workers using %s\n", args.ip, args.port, num_workers, so_path);

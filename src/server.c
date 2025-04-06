@@ -10,6 +10,7 @@
 #include "../include/stringTools.h"
 #include "../include/utils.h"
 #include <arpa/inet.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -22,21 +23,153 @@
 #include <time.h>
 #include <unistd.h>
 
-// static int set_nonblocking(int sockfd)
-// {
-//     int flags = fcntl(sockfd, F_GETFL, 0);
-//     if(flags == -1)
-//     {
-//         perror("fcntl F_GETFL");
-//         return -1;
-//     }
-//     if(fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1)
-//     {
-//         perror("fcntl F_SETFL O_NONBLOCK");
-//         return -1;
-//     }
-//     return 0;
-// }
+static int set_nonblocking(int sockfd)
+{
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    if(flags == -1)
+    {
+        perror("fcntl F_GETFL");
+        return -1;
+    }
+    if(fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1)
+    {
+        perror("fcntl F_SETFL O_NONBLOCK");
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * Function to handle the recvmsg from the client
+ * @param server_fd server.fd
+ * @param so_path path to the shared library
+ */
+static void handle_recvmsg(int server_fd, const char *so_path, RequestHandlerFunc handler)
+{
+    struct pollfd pfd;
+    int           ret;
+
+    // Set up the pollfd structure to monitor the server socket for readability
+    pfd.fd     = server_fd;
+    pfd.events = POLLIN;
+
+    // Wait for incoming connections
+    ret = poll(&pfd, 1, -1);
+    if(ret < 0)
+    {
+        perror("poll failed");
+        return;
+    }
+
+    if(ret == 0)
+    {
+        printf("poll timed out\n");
+        return;
+    }
+
+    if(pfd.revents & POLLIN)
+    {
+        struct pollfd client_pfd;
+        int           client_ret;
+        int           client_fd = accept(server_fd, NULL, NULL);
+        if(client_fd < 0)
+        {
+            perror("accept failed");
+            return;
+        }
+        printf("\n[Worker %d] Connection accepted the client fd %d\n", getpid(), client_fd);
+
+        // Set socket to non-blocking mode
+        if(set_nonblocking(client_fd) < 0)
+        {
+            close(client_fd);
+            return;
+        }
+
+        // Now that the client is connected, handle the client request using poll for reading
+        client_pfd.fd     = client_fd;
+        client_pfd.events = POLLIN;
+
+        // Wait for data from the client
+        client_ret = poll(&client_pfd, 1, -1);    // Timeout is set to -1 (wait indefinitely)
+        if(client_ret < 0)
+        {
+            perror("poll failed");
+            close(client_fd);
+            return;
+        }
+
+        if(client_ret == 0)
+        {
+            printf("poll timed out for client fd %d\n", client_fd);
+            close(client_fd);
+            return;
+        }
+
+        if(client_pfd.revents & POLLIN)
+        {
+            ssize_t      bytes;
+            TokenAndStr  firstLine;
+            HTTPRequest *request;
+            char         buffer[BUFFER_SIZE];
+
+            struct msghdr msg = {0};
+            struct iovec  iov;
+            iov.iov_base = buffer;
+            iov.iov_len  = sizeof(buffer);
+
+            msg.msg_name       = NULL;    // No address information
+            msg.msg_namelen    = 0;
+            msg.msg_iov        = &iov;    // Pointer to the vector of buffers
+            msg.msg_iovlen     = 1;       // Number of buffers
+            msg.msg_control    = NULL;    // No control messages
+            msg.msg_controllen = 0;       // Length of control data
+            msg.msg_flags      = 0;       // Flags (not using any here)
+
+            bytes = recvmsg(client_fd, &msg, 0);
+            if(bytes < 0)
+            {
+                perror("recvmsg failed");
+                close(client_fd);
+                return;
+            }
+            buffer[bytes] = '\0';
+            printf("Received: %s", buffer);
+
+            // Get the first line (request line)
+            firstLine = getFirstToken(buffer, "\n");
+            request   = initializeHTTPRequestFromString(firstLine.token);
+            free(firstLine.originalStr);
+
+            // Handle POST body (if any)
+            if(strcmp(request->method, "POST") == 0)
+            {
+                // Detect start of body: after empty line (\r\n\r\n)
+                char *body_start = strstr(buffer, "\r\n\r\n");
+                if(body_start)
+                {
+                    body_start += 4;    // Skip past \r\n\r\n
+                    setHTTPRequestBody(request, body_start);
+                }
+            }
+
+            // Handle request
+            check_for_handler_update(so_path, &handler);
+            handler(client_fd, request);
+
+            // Clean up
+            free(request->method);
+            free(request->path);
+            free(request->protocol);
+            if(request->body)
+            {
+                free(request->body);
+            }
+            free(request);
+        }
+        close(client_fd);
+    }
+}
 
 /**
  * Function to load the request handler from the shared library
@@ -98,61 +231,7 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
 
             while(1)
             {
-                TokenAndStr  firstLine;
-                HTTPRequest *request;
-                int          client_fd;
-                char         buffer[BUFFER_SIZE];
-                ssize_t      bytes;
-
-                client_fd = accept(server.fd, NULL, NULL);
-                if(client_fd < 0)
-                {
-                    perror("accept failed");
-                    continue;
-                }
-                printf("[Worker %d] Connection accepted\n", getpid());
-
-                bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-                if(bytes <= 0)
-                {
-                    perror("recv failed");
-                    close(client_fd);
-                    continue;
-                }
-                buffer[bytes] = '\0';
-                printf("Received: %s", buffer);
-
-                // Get the first line (request line)
-                firstLine = getFirstToken(buffer, "\n");
-                request   = initializeHTTPRequestFromString(firstLine.token);
-                free(firstLine.originalStr);
-
-                // Handle POST body (if any)
-                if(strcmp(request->method, "POST") == 0)
-                {
-                    // Detect start of body: after empty line (\r\n\r\n)
-                    char *body_start = strstr(buffer, "\r\n\r\n");
-                    if(body_start)
-                    {
-                        body_start += 4;    // Skip past \r\n\r\n
-                        setHTTPRequestBody(request, body_start);
-                    }
-                }
-
-                // Handle request
-                check_for_handler_update(so_path, &handler);
-                handler(client_fd, request);
-
-                // Clean up
-                close(client_fd);
-                free(request->method);
-                free(request->path);
-                free(request->protocol);
-                if(request->body)
-                {
-                    free(request->body);
-                }
-                free(request);
+                handle_recvmsg(server.fd, so_path, handler);
             }
         }
         else
@@ -191,54 +270,7 @@ int start_prefork_server(const char *ip, const char *port, const char *so_path, 
 
                     while(1)
                     {
-                        int          client_fd = accept(server.fd, NULL, NULL);
-                        char         buffer[BUFFER_SIZE];
-                        ssize_t      bytes;
-                        TokenAndStr  firstLine;
-                        HTTPRequest *request;
-
-                        if(client_fd < 0)
-                        {
-                            perror("accept failed");
-                            continue;
-                        }
-                        printf("[Worker %d] Connection accepted\n", getpid());
-
-                        bytes = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-                        if(bytes <= 0)
-                        {
-                            close(client_fd);
-                            continue;
-                        }
-
-                        buffer[bytes] = '\0';
-
-                        firstLine = getFirstToken(buffer, "\n");
-                        request   = initializeHTTPRequestFromString(firstLine.token);
-                        free(firstLine.originalStr);
-
-                        if(strcmp(request->method, "POST") == 0)
-                        {
-                            char *body_start = strstr(buffer, "\r\n\r\n");
-                            if(body_start)
-                            {
-                                body_start += 4;
-                                setHTTPRequestBody(request, body_start);
-                            }
-                        }
-
-                        check_for_handler_update(so_path, &handler);
-                        handler(client_fd, request);
-
-                        close(client_fd);
-                        free(request->method);
-                        free(request->path);
-                        free(request->protocol);
-                        if(request->body)
-                        {
-                            free(request->body);
-                        }
-                        free(request);
+                        handle_recvmsg(server.fd, so_path, handler);
                     }
                 }
                 child_pids[i] = new_pid;
@@ -272,7 +304,7 @@ int server_setup(char *passedServerInfo[])
 {
     const char *ip      = passedServerInfo[0];
     const char *port    = passedServerInfo[1];
-    const char *so_path = "../handlers/handler_v1.so";
+    const char *so_path = "../data/handler/handler_v1.so";
     const int   workers = 4;    // Number of worker processes
 
     return start_prefork_server(ip, port, so_path, workers);
