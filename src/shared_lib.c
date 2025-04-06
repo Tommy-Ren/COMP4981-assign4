@@ -4,11 +4,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-#include <time.h>
 
 // Global state for reload checks (optional if single `.so`)
-static time_t last_mod_time  = 0;
-static void  *current_handle = NULL;
+time_t last_mod_time  = 0;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+void  *current_handle = NULL;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 /**
  * Loads a shared library and returns the `handle_request` function pointer.

@@ -9,8 +9,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-static pid_t *registered_child_pids = NULL;
-static int    registered_num_pids   = 0;
+pid_t *registered_child_pids = NULL;    // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
+int    registered_num_pids   = 0;       // NOLINT(cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors)
 
 void register_child_pids(pid_t *pids, int count)
 {
