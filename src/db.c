@@ -64,14 +64,6 @@ int store_int(DBM *db, const char *key, int value)
     return result;
 }
 
-int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_t v_size)
-{
-    const_datum key_datum   = MAKE_CONST_DATUM_BYTE(key, k_size);
-    const_datum value_datum = MAKE_CONST_DATUM_BYTE(value, v_size);
-
-    return dbm_store(db, *(datum *)&key_datum, *(datum *)&value_datum, DBM_REPLACE);
-}
-
 int store_post_entry(DBO *dbo, const char *body_string, const char *pk_name)
 {
     int  current_id;
@@ -113,35 +105,6 @@ int store_post_entry(DBO *dbo, const char *body_string, const char *pk_name)
 
     dbm_close(dbo->db);
     return 0;
-}
-
-/* Retrieves a stored string value for the given key from the database.
-   Returns a newly allocated copy of the string on success, or NULL if not found. */
-char *retrieve_string(DBM *db, const char *key)
-{
-    const_datum key_datum;
-    datum       result;
-    char       *retrieved_str;
-
-    key_datum = MAKE_CONST_DATUM(key);
-
-    result = dbm_fetch(db, *(datum *)&key_datum);
-
-    if(result.dptr == NULL)
-    {
-        return NULL;
-    }
-
-    retrieved_str = (char *)malloc(TO_SIZE_T(result.dsize));
-
-    if(!retrieved_str)
-    {
-        return NULL;
-    }
-
-    memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
-
-    return retrieved_str;
 }
 
 int retrieve_int(DBM *db, const char *key, int *result)
@@ -186,34 +149,4 @@ void *retrieve_byte(DBM *db, const void *key, size_t size)
     memcpy(retrieved_str, result.dptr, TO_SIZE_T(result.dsize));
 
     return retrieved_str;
-}
-
-ssize_t init_pk(DBO *dbo, const char *pk_name)
-{
-    int current_id;
-
-    if(database_open(dbo) < 0)
-    {
-        perror("database error");
-        return -1;
-    }
-
-    if(retrieve_int(dbo->db, pk_name, &current_id) < 0)
-    {
-        // Key does not exist, initialize it to 0
-        current_id = 0;
-        if(store_int(dbo->db, pk_name, current_id) != 0)
-        {
-            fprintf(stderr, "Failed to initialize primary key\n");
-            dbm_close(dbo->db);
-            return -1;
-        }
-    }
-    else
-    {
-        printf("Retrieved primary key '%s' with current value: %d\n", pk_name, current_id);
-    }
-
-    dbm_close(dbo->db);
-    return 0;
 }

@@ -42,14 +42,6 @@ ssize_t database_open(DBO *dbo);
    Returns 0 on success, -1 on failure. */
 int store_string(DBM *db, const char *key, const char *value);
 
-/* Stores an integer value in the DBM.
-   Returns 0 on success, -1 on failure. */
-int store_int(DBM *db, const char *key, int value);
-
-/* Stores raw bytes in the DBM.
-   Returns 0 on success, -1 on failure. */
-int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_t v_size);
-
 /**
  * @brief Stores a parsed POST key-value entry in the DB using a unique entry key.
  * The entry key will be generated like "entry_001", "entry_002", etc.
@@ -60,11 +52,6 @@ int store_byte(DBM *db, const void *key, size_t k_size, const void *value, size_
  */
 int store_post_entry(DBO *dbo, const char *body_string, const char *pk_name);
 
-/* Retrieves the stored string value associated with key from the given DBM.
-   On success, returns a pointer to a newly allocated copy of the value (which must be freed by the caller);
-   returns NULL if the key is not found or on error. */
-char *retrieve_string(DBM *db, const char *key);
-
 /* Retrieves an integer from the DBM.
    Returns 0 on success, -1 on failure. */
 int retrieve_int(DBM *db, const char *key, int *result);
@@ -72,8 +59,5 @@ int retrieve_int(DBM *db, const char *key, int *result);
 /* Retrieves raw bytes from the DBM.
    Returns pointer on success, or NULL if not found. */
 void *retrieve_byte(DBM *db, const void *key, size_t size);
-
-/* Initializes the primary key in the database. Returns 0 on success, -1 on failure. */
-ssize_t init_pk(DBO *dbo, const char *pk_name);
 
 #endif    // DB_H
