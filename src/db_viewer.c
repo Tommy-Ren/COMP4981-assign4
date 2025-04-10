@@ -6,11 +6,18 @@
 #include <ndbm.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> 
+#include <string.h>
+
+void print_db_entries(const char *db_path);
 
 void print_db_entries(const char *db_path)
 {
-    DBM *db = dbm_open(db_path, O_RDONLY, 0);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-qual"    // aggregate-return
+    DBM *db = dbm_open((char *)db_path, O_RDONLY, 0);
+#pragma GCC diagnostic pop
+    datum key;
+
     if(!db)
     {
         perror("Failed to open DB");
@@ -19,10 +26,18 @@ void print_db_entries(const char *db_path)
 
     printf("=== Contents of %s ===\n", db_path);
 
-    datum key = dbm_firstkey(db);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waggregate-return"
+    key = dbm_firstkey(db);
+#pragma GCC diagnostic pop
+
     while(key.dptr != NULL)
     {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waggregate-return"
         datum value = dbm_fetch(db, key);
+#pragma GCC diagnostic pop
+
         if(value.dptr != NULL)
         {
             printf("Key: %.*s\n", key.dsize, key.dptr);
@@ -30,13 +45,16 @@ void print_db_entries(const char *db_path)
             printf("----\n");
         }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Waggregate-return"
         key = dbm_nextkey(db);
+#pragma GCC diagnostic pop
     }
 
     dbm_close(db);
 }
 
-int main(int argc, char *argv[])
+int main(int argc, const char *argv[])
 {
     const char *db_path = "../data/db/post_data.db";    // default
 
